@@ -204,7 +204,7 @@
 
   - 在启动类上添加@EnableEurekaServer
 
-- eureka client组件发布服务到注册中心，
+- eureka client组件发布服务到注册中心
 
   ```yaml
   eureka:
@@ -221,7 +221,7 @@
 
   - 在启动类上添加@EnableEurekaClient注解
 
-- 服务消费者（benshen）
+- 服务消费者（本身也是服务）
 
   - **ribbon+restTemplate**（使用模板请求服务）
     - restTemplate通过@LoadBalanced开启负载均衡功能
@@ -231,6 +231,133 @@
     - 在启动类上添加@EnableFeignClients注解
     - 自己编写接口，添加服务的一摸一样的方法，在接口上添加@ FeignClient（“‘服务的名称’）
     - 通过接口调用方法来实现方法的调用
+  
+- 配置config server
+
+  ```yaml
+  cloud:
+      config:
+        server:
+          git:
+            uri: 
+            username: 
+            password: 
+  ```
+
+  - 在启动类上添加@EnableConfigServer注解
+
+- 熔断hystrix
+
+  ```xml
+  feign.hystrix.enabled: true
+  ```
+
+  - 在本地自实现服务的方法，通过@FeignClient注解来知识本地的处理
+
+- 网关zuul
+
+  ```yaml
+  zuul:
+    routes:
+      api-a:
+        path: /api-a/**
+        serviceId: service-ribbon
+      api-b:
+        path: /api-b/**
+        serviceId: service-feign
+  ```
+
+  - 在启动类上添加@EnableZuulProxy注解
+
+  - 继承zuulFilter抽象类实现过滤认证功能
+
+    ```java
+    package com.zl.servicezuul.service;
+    
+    import com.netflix.zuul.ZuulFilter;
+    import com.netflix.zuul.context.RequestContext;
+    import com.netflix.zuul.exception.ZuulException;
+    import org.springframework.stereotype.Component;
+    
+    import javax.servlet.http.HttpServletRequest;
+    import java.io.IOException;
+    
+    /**
+     * @author: 丢了风筝的线
+     * @Date: 2020/6/21-06-21-16:27
+     * @Description:实现路由的过滤规则，做权限校验等
+     */
+    @Component
+    public class myZuul extends ZuulFilter {
+    
+        /**
+         * 过滤器的类型
+         * @return
+         */
+        @Override
+        public String filterType() {
+            return "pre";
+        }
+    
+        /**
+         * 过滤器的级别，0123，数字越小级别越高
+         * @return
+         */
+        @Override
+        public int filterOrder() {
+            return 0;
+        }
+    
+        /**
+         * 是否开启过滤功能
+         * @return
+         */
+        @Override
+        public boolean shouldFilter() {
+            return true;
+        }
+    
+        /**
+         * 过滤的业务逻辑
+         * @return
+         * @throws ZuulException
+         */
+        @Override
+        public Object run() throws ZuulException {
+    
+            //获取当前的请求
+            RequestContext currentContext = RequestContext.getCurrentContext();
+            HttpServletRequest request = currentContext.getRequest();
+    
+            //获取请求的用户信息
+            String token = request.getParameter("token");
+    
+            if(token==null ||! "zl".equals(token)){
+    
+                //关闭路由的响应
+                currentContext.setSendZuulResponse(false);
+                //设置请求响应的状态码
+                currentContext.setResponseStatusCode(401);
+    
+                try {
+                    currentContext.getResponse().setContentType("text/html;charset=utf8");
+                    currentContext.getResponse().getWriter().write("身份信息不合法");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+    
+                return null;
+            }
+    
+            //身份验证成功
+    
+            return null;
+        }
+    }
+    
+    ```
+
+    
 
 ### **二、框架（中间件）**
 
